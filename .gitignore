@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Credentials and secrets
+.ctfd_creds.json
+.env
+.env.*
+
+# CTF artifacts (never commit fetched challenges, flags, private writeups)
+challenges/
+writeups/private/
+*.flag
+
+# Tool manager runtime state
+tools/.checksums.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

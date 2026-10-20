@@ -1,0 +1,4 @@
+# Ignore downloaded heavy tools & archives, but track directory
+*
+!.gitignore
+!README.md

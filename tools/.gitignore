@@ -2,3 +2,8 @@
 *
 !.gitignore
 !README.md
+# helper scripts ที่เป็นส่วนหนึ่งของสกิล (track ไว้)
+!drupal_admin_rce.py
+!wordpress_admin_rce.py
+!php_cgi_cve_2012_1823.py
+!proftpd_modcopy_cve_2015_3306.py

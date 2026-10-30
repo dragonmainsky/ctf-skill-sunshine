@@ -7,3 +7,4 @@
 !wordpress_admin_rce.py
 !php_cgi_cve_2012_1823.py
 !proftpd_modcopy_cve_2015_3306.py
+!activemq_cve_2016_3088.py

